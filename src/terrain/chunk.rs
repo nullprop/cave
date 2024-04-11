@@ -47,7 +47,7 @@ impl Chunk {
     }
 
     fn cell_to_world(&self, cell_x: usize, cell_y: usize, cell_z: usize) -> IVec3 {
-        return self.position
+        return self.position * CHUNK_CUBE_SIZE as i32
             + IVec3 {
                 x: cell_x as i32,
                 y: cell_y as i32,

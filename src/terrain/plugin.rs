@@ -10,6 +10,7 @@ pub struct TerrainPlugin {
 #[derive(Resource)]
 pub struct TerrainSettings {
     fbm: Fbm<Perlin>,
+    cell_noise_scale: f64,
 }
 
 impl TerrainPlugin {
@@ -20,7 +21,7 @@ impl TerrainPlugin {
         mut materials: ResMut<Assets<StandardMaterial>>,
     ) {
         // test chunk
-        let chunk = Chunk::new(&settings.fbm, 0, 0, 0);
+        let chunk = Chunk::new(&settings.fbm, settings.cell_noise_scale, 0, 0, 0);
         let mesh_handle = meshes.add(chunk.polygonize());
         let pbr = PbrBundle {
             mesh: mesh_handle,
@@ -44,6 +45,7 @@ impl Plugin for TerrainPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(TerrainSettings {
             fbm: Fbm::<Perlin>::new(self.seed),
+            cell_noise_scale: 0.1,
         })
         .add_systems(Startup, Self::create_terrain);
     }

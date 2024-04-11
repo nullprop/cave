@@ -18,29 +18,29 @@ pub struct Chunk {
 }
 
 impl Chunk {
-    pub fn new(fbm: &Fbm<Perlin>, x: i32, y: i32, z: i32) -> Self {
+    pub fn new(fbm: &Fbm<Perlin>, cell_noise_scale: f64, x: i32, y: i32, z: i32) -> Self {
         let mut chunk = Chunk {
             position: IVec3 { x, y, z },
             cells: [0.0; CELL_GRID_SIZE_3],
         };
 
-        chunk.generate_noise(fbm);
+        chunk.generate_noise(fbm, cell_noise_scale);
 
         return chunk;
     }
 
-    fn generate_noise(&mut self, fbm: &Fbm<Perlin>) {
+    fn generate_noise(&mut self, fbm: &Fbm<Perlin>, cell_noise_scale: f64) {
         for cell_x in 0..CELL_GRID_SIZE {
             for cell_y in 0..CELL_GRID_SIZE {
                 for cell_z in 0..CELL_GRID_SIZE {
                     let index = Self::cell_to_index(cell_x, cell_y, cell_z);
                     let cell_world = self.cell_to_world(cell_x, cell_y, cell_z);
                     let cell_world_f = [
-                        cell_world.x as f64,
-                        cell_world.y as f64,
-                        cell_world.z as f64,
+                        cell_world.x as f64 * cell_noise_scale,
+                        cell_world.y as f64 * cell_noise_scale,
+                        cell_world.z as f64 * cell_noise_scale,
                     ];
-                    self.cells[index] = fbm.get(cell_world_f) as f32;
+                    self.cells[index] = (fbm.get(cell_world_f) as f32) * 0.5 + 0.5;
                 }
             }
         }
@@ -67,8 +67,8 @@ impl Chunk {
     fn index_to_cell(index: usize) -> [usize; 3] {
         let mut coords: [usize; 3] = [0; 3];
         coords[2] = index % CELL_GRID_SIZE;
-        coords[1] = (index - coords[2]) % CELL_GRID_SIZE_2;
-        coords[0] = (index - coords[2] - coords[1]) / CELL_GRID_SIZE_3;
+        coords[1] = ((index - coords[2]) % CELL_GRID_SIZE_2) / CELL_GRID_SIZE;
+        coords[0] = (index - coords[2] - coords[1] * CELL_GRID_SIZE) / CELL_GRID_SIZE_2;
         return coords;
     }
 
@@ -206,6 +206,7 @@ impl Chunk {
             bevy::render::mesh::PrimitiveTopology::TriangleList,
             RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
         )
-        .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, mesh_verts);
+        .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, mesh_verts)
+        .with_computed_flat_normals();
     }
 }

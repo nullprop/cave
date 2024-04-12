@@ -1,4 +1,7 @@
-use bevy::{prelude::*, render::render_asset::RenderAssetUsages};
+use bevy::{
+    prelude::*,
+    render::{mesh::Indices, render_asset::RenderAssetUsages},
+};
 use noise::{Fbm, NoiseFn, Perlin};
 
 use super::marching_cube::*;
@@ -87,7 +90,7 @@ impl Chunk {
         ];
     }
 
-    pub fn polygonize(&self) -> Mesh {
+    pub fn polygonize(&self) -> Option<Mesh> {
         let mut mesh_verts = Vec::new();
 
         for cube_x in 0..CHUNK_CUBE_SIZE {
@@ -202,11 +205,20 @@ impl Chunk {
             }
         }
 
-        return Mesh::new(
-            bevy::render::mesh::PrimitiveTopology::TriangleList,
-            RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
-        )
-        .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, mesh_verts)
-        .with_computed_flat_normals();
+        if mesh_verts.len() == 0 {
+            return None;
+        }
+
+        let mesh_indices: Vec<u32> = (0u32..mesh_verts.len() as u32).collect();
+
+        return Some(
+            Mesh::new(
+                bevy::render::mesh::PrimitiveTopology::TriangleList,
+                RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
+            )
+            .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, mesh_verts)
+            .with_computed_flat_normals()
+            .with_inserted_indices(Indices::U32(mesh_indices)),
+        );
     }
 }

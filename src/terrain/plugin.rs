@@ -1,5 +1,6 @@
 use bevy::prelude::*;
-use noise::{Fbm, MultiFractal, Perlin};
+use bevy_rapier3d::geometry::{Collider, ComputedColliderShape};
+use noise::{Fbm, Perlin};
 
 use super::chunk::*;
 
@@ -25,14 +26,18 @@ impl TerrainPlugin {
             for y in -5..6 {
                 for z in -5..6 {
                     let chunk = Chunk::new(&settings.fbm, settings.cell_noise_scale, x, y, z);
-                    let mesh_handle = meshes.add(chunk.polygonize());
-                    let pbr = PbrBundle {
-                        mesh: mesh_handle,
-                        material: materials.add(Color::GRAY),
-                        transform: Transform::from_xyz(0.0, 0.0, 0.0),
-                        ..default()
-                    };
-                    commands.spawn((chunk, pbr));
+                    // TODO: all this should be in a ChunkBundle or something...
+                    if let Some(mesh) = chunk.polygonize() {
+                        let shape = ComputedColliderShape::TriMesh;
+                        let collider = Collider::from_bevy_mesh(&mesh, &shape);
+                        let mesh_handle = meshes.add(mesh);
+                        let pbr = PbrBundle {
+                            mesh: mesh_handle,
+                            material: materials.add(Color::GRAY),
+                            ..default()
+                        };
+                        commands.spawn((chunk, pbr, collider.unwrap()));
+                    }
                 }
             }
         }
@@ -41,7 +46,6 @@ impl TerrainPlugin {
         commands.spawn(PbrBundle {
             mesh: meshes.add(Cuboid::new(1.0, 1.0, 1.0)),
             material: materials.add(Color::RED),
-            transform: Transform::from_xyz(0.0, 0.0, 0.0),
             ..default()
         });
     }

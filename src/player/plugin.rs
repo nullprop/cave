@@ -1,4 +1,8 @@
-use bevy::{input::mouse::MouseMotion, prelude::*};
+use bevy::{
+    core_pipeline::{bloom::BloomSettings, tonemapping::Tonemapping},
+    input::mouse::MouseMotion,
+    prelude::*,
+};
 use bevy_rapier3d::{
     control::{CharacterAutostep, CharacterLength, KinematicCharacterControllerOutput},
     dynamics::RigidBody,
@@ -48,6 +52,7 @@ struct PlayerCameraBundle {
     camera: Camera3dBundle,
     camera_angles: CameraAngles,
     tag: PlayerTag,
+    bloom: BloomSettings,
     fog: FogSettings,
 }
 
@@ -110,13 +115,19 @@ impl PlayerPlugin {
             .with_children(|parent| {
                 parent.spawn(PlayerCameraBundle {
                     camera: Camera3dBundle {
+                        camera: Camera {
+                            hdr: true,
+                            ..default()
+                        },
                         projection: PerspectiveProjection {
                             fov: 60.0_f32.to_radians(),
                             ..default()
                         }
                         .into(),
+                        tonemapping: Tonemapping::TonyMcMapface,
                         ..default()
                     },
+                    bloom: BloomSettings::NATURAL,
                     fog: FogSettings {
                         color: Color::rgba(0.25, 0.25, 0.25, 1.0),
                         falloff: FogFalloff::Linear {

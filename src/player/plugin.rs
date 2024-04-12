@@ -2,7 +2,7 @@ use bevy::{input::mouse::MouseMotion, prelude::*};
 use bevy_rapier3d::{
     control::{CharacterAutostep, CharacterLength, KinematicCharacterControllerOutput},
     dynamics::RigidBody,
-    geometry::Collider,
+    geometry::{Collider, TOIStatus},
     math::Vect,
     prelude::KinematicCharacterController,
 };
@@ -55,7 +55,7 @@ struct PlayerTag {}
 
 impl PlayerPlugin {
     fn spawn_player(mut commands: Commands) {
-        let trans = Transform::from_xyz(0.0, 2.0, 5.0);
+        let trans = Transform::from_xyz(0.0, 4.0, 5.0);
         commands
             .spawn(PlayerBundle {
                 player: Player {
@@ -65,7 +65,7 @@ impl PlayerPlugin {
                     jump_vel: 4.0,
                     accel: 32.0,
                     air_accel: 8.0,
-                    friction: 16.0,
+                    friction: 8.0,
                     camera_height: 1.4,
                     ..default()
                 },
@@ -246,11 +246,30 @@ impl PlayerPlugin {
         }
     }
 
+    fn clip_velocity(velocity: Vec3, normal: Vec3, bounce: f32) -> Vec3 {
+        let mut backoff = velocity.dot(normal);
+        if backoff < bounce {
+            backoff *= bounce;
+        } else {
+            backoff /= bounce;
+        }
+        return velocity - normal * backoff;
+    }
+
     fn player_update(
         mut players: Query<(&mut Player, &KinematicCharacterControllerOutput)>,
         time: Res<Time>,
     ) {
         for (mut player, output) in players.iter_mut() {
+            for col in &output.collisions {
+                if col.toi.status == TOIStatus::Converged {
+                    if let Some(details) = col.toi.details {
+                        player.velocity =
+                            Self::clip_velocity(player.velocity, details.normal1, 1.0);
+                    }
+                }
+            }
+
             player.grounded = output.grounded;
             if player.grounded {
                 player.velocity.y = 0.0;

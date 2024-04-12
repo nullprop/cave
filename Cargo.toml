@@ -17,4 +17,5 @@ rustflags = ["-C", "link-arg=-fuse-ld=/usr/bin/mold"]
 
 [dependencies]
 bevy = "0.13.2"
+bevy_rapier3d = "0.25.0"
 noise = "0.9.0"

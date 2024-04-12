@@ -36,7 +36,7 @@ struct Player {
 #[derive(Bundle, Default)]
 struct PlayerBundle {
     player: Player,
-    transform: TransformBundle,
+    transform: SpatialBundle,
     controller: KinematicCharacterController,
     rigidbody: RigidBody,
     collider: Collider,
@@ -79,8 +79,8 @@ impl PlayerPlugin {
                     camera_height: 1.4,
                     ..default()
                 },
-                transform: TransformBundle {
-                    local: trans,
+                transform: SpatialBundle {
+                    transform: trans,
                     ..default()
                 },
                 controller: KinematicCharacterController {
@@ -119,7 +119,19 @@ impl PlayerPlugin {
                     ..default()
                 });
                 parent.spawn(PlayerLightBundle {
-                    light: SpotLightBundle { ..default() },
+                    light: SpotLightBundle {
+                        spot_light: SpotLight {
+                            color: Color::rgb(1.0, 1.0, 1.0),
+                            intensity: 1_000_000.0,
+                            range: 50.0,
+                            radius: 0.0,
+                            shadows_enabled: true,
+                            inner_angle: 0.0,
+                            outer_angle: 40.0_f32.to_radians(),
+                            ..default()
+                        },
+                        ..default()
+                    },
                     ..default()
                 });
             });

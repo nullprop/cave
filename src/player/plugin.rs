@@ -36,11 +36,11 @@ struct Player {
 #[derive(Bundle, Default)]
 struct PlayerBundle {
     player: Player,
-    tag: PlayerTag,
     transform: TransformBundle,
     controller: KinematicCharacterController,
     rigidbody: RigidBody,
     collider: Collider,
+    tag: PlayerTag,
 }
 
 #[derive(Bundle, Default)]
@@ -50,8 +50,18 @@ struct PlayerCameraBundle {
     tag: PlayerTag,
 }
 
+#[derive(Bundle, Default)]
+struct PlayerLightBundle {
+    light: SpotLightBundle,
+    tag: PlayerLightTag,
+    tag1: PlayerTag,
+}
+
 #[derive(Component, Default)]
 struct PlayerTag {}
+
+#[derive(Component, Default)]
+struct PlayerLightTag {}
 
 impl PlayerPlugin {
     fn spawn_player(mut commands: Commands) {
@@ -108,11 +118,11 @@ impl PlayerPlugin {
                     },
                     ..default()
                 });
+                parent.spawn(PlayerLightBundle {
+                    light: SpotLightBundle { ..default() },
+                    ..default()
+                });
             });
-        commands.spawn(PointLightBundle {
-            transform: trans,
-            ..Default::default()
-        });
     }
 
     // todo this should only save the input values.
@@ -126,7 +136,8 @@ impl PlayerPlugin {
             &mut KinematicCharacterController,
             &Children,
         )>,
-        mut q_child: Query<(Entity, &mut CameraAngles)>,
+        mut q_cam: Query<(Entity, &mut CameraAngles)>,
+        q_light: Query<Entity, With<PlayerLightTag>>,
         mut q_trans: Query<&mut Transform, With<PlayerTag>>,
         time: Res<Time>,
     ) {
@@ -138,7 +149,7 @@ impl PlayerPlugin {
 
         let sensitivity = 4.0;
 
-        for (player_id, mut player, mut controller, camera_ids) in &mut q_parent {
+        for (player_id, mut player, mut controller, children) in &mut q_parent {
             if f32::abs(mouse_move.x) > f32::EPSILON {
                 player.yaw -= mouse_move.x * 0.022 * sensitivity;
             }
@@ -147,25 +158,42 @@ impl PlayerPlugin {
             }
 
             let mut cam_fwd = -Vec3::Z;
+            let mut cam_rot = Quat::IDENTITY;
 
-            if let Ok(cam) = q_child.get_mut(camera_ids[0]) {
-                let cam_id = cam.0;
-                let mut cam_angles = cam.1;
+            for child in children.iter() {
+                if let Ok(cam) = q_cam.get_mut(*child) {
+                    let cam_id = cam.0;
+                    let mut cam_angles = cam.1;
 
-                if f32::abs(mouse_move.y) > f32::EPSILON {
-                    cam_angles.pitch -= mouse_move.y * 0.022 * sensitivity;
-                    cam_angles.pitch = f32::clamp(cam_angles.pitch, -89.0, 89.0);
+                    if f32::abs(mouse_move.y) > f32::EPSILON {
+                        cam_angles.pitch -= mouse_move.y * 0.022 * sensitivity;
+                        cam_angles.pitch = f32::clamp(cam_angles.pitch, -89.0, 89.0);
+                    }
+
+                    if let Ok(mut cam_trans) = q_trans.get_mut(cam_id) {
+                        cam_trans.translation = Vec3 {
+                            x: 0.0,
+                            y: player.camera_height,
+                            z: 0.0,
+                        };
+                        cam_trans.rotation = Quat::IDENTITY;
+                        cam_trans.rotate_local_x(cam_angles.pitch.to_radians());
+                        cam_rot = cam_trans.rotation;
+                        cam_fwd = cam_trans.forward().into();
+                    }
                 }
+            }
 
-                if let Ok(mut cam_trans) = q_trans.get_mut(cam_id) {
-                    cam_trans.translation = Vec3 {
-                        x: 0.0,
-                        y: player.camera_height,
-                        z: 0.0,
-                    };
-                    cam_trans.rotation = Quat::IDENTITY;
-                    cam_trans.rotate_local_x(cam_angles.pitch.to_radians());
-                    cam_fwd = cam_trans.forward().into();
+            for child in children.iter() {
+                if let Ok(light) = q_light.get(*child) {
+                    if let Ok(mut light_trans) = q_trans.get_mut(light) {
+                        light_trans.translation = Vec3 {
+                            x: 0.0,
+                            y: player.camera_height,
+                            z: 0.0,
+                        };
+                        light_trans.rotation = cam_rot;
+                    }
                 }
             }
 

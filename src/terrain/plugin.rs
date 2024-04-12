@@ -33,7 +33,12 @@ impl TerrainPlugin {
                         let mesh_handle = meshes.add(mesh);
                         let pbr = PbrBundle {
                             mesh: mesh_handle,
-                            material: materials.add(Color::GRAY),
+                            material: materials.add(StandardMaterial {
+                                base_color: Color::GRAY,
+                                metallic: 0.0,
+                                perceptual_roughness: 0.6,
+                                ..default()
+                            }),
                             ..default()
                         };
                         commands.spawn((chunk, pbr, collider.unwrap()));

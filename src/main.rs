@@ -18,6 +18,10 @@ fn debug_input(kb_input: Res<ButtonInput<KeyCode>>, mut debug_render: ResMut<Deb
 fn main() {
     App::new()
         .insert_resource(ClearColor(Color::BLACK))
+        .insert_resource(AmbientLight {
+            color: Color::WHITE,
+            brightness: 50.0, // wtf is the camera exposure
+        })
         .add_plugins(DefaultPlugins)
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::default())
         .add_plugins(RapierDebugRenderPlugin {

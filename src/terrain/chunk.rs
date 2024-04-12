@@ -7,8 +7,6 @@ use noise::{Fbm, NoiseFn, Perlin};
 use super::marching_cube::*;
 
 const CHUNK_CUBE_SIZE: usize = 16;
-const CHUNK_CUBE_SIZE_2: usize = CHUNK_CUBE_SIZE * CHUNK_CUBE_SIZE;
-const CHUNK_CUBE_SIZE_3: usize = CHUNK_CUBE_SIZE_2 * CHUNK_CUBE_SIZE;
 
 const CELL_GRID_SIZE: usize = CHUNK_CUBE_SIZE + 1;
 const CELL_GRID_SIZE_2: usize = CELL_GRID_SIZE * CELL_GRID_SIZE;

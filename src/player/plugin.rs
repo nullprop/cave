@@ -48,6 +48,7 @@ struct PlayerCameraBundle {
     camera: Camera3dBundle,
     camera_angles: CameraAngles,
     tag: PlayerTag,
+    fog: FogSettings,
 }
 
 #[derive(Bundle, Default)]
@@ -114,6 +115,14 @@ impl PlayerPlugin {
                             ..default()
                         }
                         .into(),
+                        ..default()
+                    },
+                    fog: FogSettings {
+                        color: Color::rgba(0.25, 0.25, 0.25, 1.0),
+                        falloff: FogFalloff::Linear {
+                            start: 50.0,
+                            end: 60.0,
+                        },
                         ..default()
                     },
                     ..default()

@@ -2,6 +2,7 @@ use bevy::{
     prelude::*,
     render::{mesh::Indices, render_asset::RenderAssetUsages},
 };
+use bevy_rapier3d::geometry::{Collider, ComputedColliderShape};
 use noise::{Fbm, NoiseFn, Perlin};
 
 use super::marching_cube::*;
@@ -16,6 +17,11 @@ const CELL_GRID_SIZE_3: usize = CELL_GRID_SIZE_2 * CELL_GRID_SIZE;
 pub struct Chunk {
     pub position: IVec3,
     pub cells: [f32; CELL_GRID_SIZE_3],
+    pub is_dirty: bool,
+    pub mesh: Option<Mesh>,
+    pub mesh_handle: Option<Handle<Mesh>>,
+    pub material_handle: Option<Handle<StandardMaterial>>,
+    pub collider: Option<Collider>,
 }
 
 impl Chunk {
@@ -23,11 +29,41 @@ impl Chunk {
         let mut chunk = Chunk {
             position: IVec3 { x, y, z },
             cells: [0.0; CELL_GRID_SIZE_3],
+            is_dirty: true,
+            mesh: None,
+            mesh_handle: None,
+            material_handle: None,
+            collider: None,
         };
 
         chunk.generate_noise(fbm, cell_noise_scale);
 
         return chunk;
+    }
+
+    pub fn is_in_chunk(&self, world_pos: IVec3) -> bool {
+        let min = self.position * CHUNK_CUBE_SIZE as i32;
+        let max = min + IVec3::ONE * CHUNK_CUBE_SIZE as i32; // inclusive
+
+        if world_pos.x < min.x || world_pos.y < min.y || world_pos.z < min.z {
+            return false;
+        }
+        if world_pos.x > max.x || world_pos.y > max.y || world_pos.z > max.z {
+            return false;
+        }
+
+        return true;
+    }
+
+    pub fn edit(&mut self, world_pos: IVec3, value: f32) {
+        let cell_pos = self.world_to_cell(world_pos);
+        let index = Self::cell_to_index(
+            cell_pos.x as usize,
+            cell_pos.y as usize,
+            cell_pos.z as usize,
+        );
+        self.cells[index] = value;
+        self.is_dirty = true;
     }
 
     fn generate_noise(&mut self, fbm: &Fbm<Perlin>, cell_noise_scale: f64) {
@@ -54,6 +90,10 @@ impl Chunk {
                 y: cell_y as i32,
                 z: cell_z as i32,
             };
+    }
+
+    fn world_to_cell(&self, world_pos: IVec3) -> IVec3 {
+        return world_pos - self.position * CHUNK_CUBE_SIZE as i32;
     }
 
     fn cell_index_to_world(&self, index: usize) -> IVec3 {
@@ -88,7 +128,8 @@ impl Chunk {
         ];
     }
 
-    pub fn polygonize(&self) -> Option<Mesh> {
+    pub fn polygonize(&mut self) -> Option<Mesh> {
+        self.is_dirty = false;
         let mut mesh_verts = Vec::new();
 
         for cube_x in 0..CHUNK_CUBE_SIZE {

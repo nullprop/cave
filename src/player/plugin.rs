@@ -11,7 +11,10 @@ use bevy_rapier3d::{
     prelude::KinematicCharacterController,
 };
 
-use crate::terrain::plugin::{TerrainCellEvent, TerrainEditShape};
+use crate::terrain::chunk::CHUNK_CUBE_SIZE;
+use crate::terrain::plugin::{TerrainCellEvent, TerrainEditShape, RENDER_DISTANCE_CHUNKS};
+
+const RENDER_DISTANCE: f32 = CHUNK_CUBE_SIZE as f32 * RENDER_DISTANCE_CHUNKS as f32;
 
 pub struct PlayerPlugin {}
 
@@ -73,7 +76,11 @@ struct PlayerTag {}
 struct PlayerLightTag {}
 
 impl PlayerPlugin {
-    fn spawn_player(mut commands: Commands) {
+    fn spawn_player(
+        mut commands: Commands,
+        mut meshes: ResMut<Assets<Mesh>>,
+        mut materials: ResMut<Assets<StandardMaterial>>,
+    ) {
         let trans = Transform::from_xyz(0.0, 4.0, 5.0);
         commands
             .spawn(PlayerBundle {
@@ -125,7 +132,7 @@ impl PlayerPlugin {
                         },
                         projection: PerspectiveProjection {
                             fov: 60.0_f32.to_radians(),
-                            far: 60.0,
+                            far: RENDER_DISTANCE + 10.0,
                             ..default()
                         }
                         .into(),
@@ -136,8 +143,8 @@ impl PlayerPlugin {
                     fog: FogSettings {
                         color: Color::rgba(0.25, 0.25, 0.25, 1.0),
                         falloff: FogFalloff::Linear {
-                            start: 50.0,
-                            end: 60.0,
+                            start: RENDER_DISTANCE - 20.0,
+                            end: RENDER_DISTANCE,
                         },
                         ..default()
                     },
@@ -157,6 +164,12 @@ impl PlayerPlugin {
                         },
                         ..default()
                     },
+                    ..default()
+                });
+                // inside out sphere as far plane for distance fog
+                parent.spawn(PbrBundle {
+                    mesh: meshes.add(Sphere::new(-(RENDER_DISTANCE + 5.0)).mesh().ico(1).unwrap()),
+                    material: materials.add(Color::BLACK),
                     ..default()
                 });
             });

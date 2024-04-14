@@ -9,6 +9,9 @@ use noise::{Fbm, Perlin};
 use super::super::player::plugin::Player;
 use super::chunk::*;
 
+pub const RENDER_DISTANCE_CHUNKS: u32 = 5;
+const CHUNK_SPAWN_DISTANCE: i32 = RENDER_DISTANCE_CHUNKS as i32 + 1;
+
 pub struct TerrainPlugin {
     pub seed: u32,
 }
@@ -64,18 +67,20 @@ impl TerrainPlugin {
         settings: Res<TerrainSettings>,
     ) {
         for player_trans in &q_player {
-            let chunk_spawn_range = 4;
             let player_chunk = IVec3 {
                 x: f32::floor(player_trans.translation.x / CHUNK_CUBE_SIZE as f32) as i32,
                 y: f32::floor(player_trans.translation.y / CHUNK_CUBE_SIZE as f32) as i32,
                 z: f32::floor(player_trans.translation.z / CHUNK_CUBE_SIZE as f32) as i32,
             };
             let mut wanted_chunks: Vec<IVec3> = Vec::new();
-            for x in (player_chunk.x - chunk_spawn_range)..(player_chunk.x + chunk_spawn_range) {
-                for y in (player_chunk.y - chunk_spawn_range)..(player_chunk.y + chunk_spawn_range)
+            for x in
+                (player_chunk.x - CHUNK_SPAWN_DISTANCE)..(player_chunk.x + CHUNK_SPAWN_DISTANCE)
+            {
+                for y in
+                    (player_chunk.y - CHUNK_SPAWN_DISTANCE)..(player_chunk.y + CHUNK_SPAWN_DISTANCE)
                 {
-                    for z in
-                        (player_chunk.z - chunk_spawn_range)..(player_chunk.z + chunk_spawn_range)
+                    for z in (player_chunk.z - CHUNK_SPAWN_DISTANCE)
+                        ..(player_chunk.z + CHUNK_SPAWN_DISTANCE)
                     {
                         wanted_chunks.push(IVec3 { x, y, z });
                     }

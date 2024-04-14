@@ -20,19 +20,25 @@ pub struct TerrainCellEvent {
     value: f32,
 }
 
+#[derive(Component)]
+pub struct Empty {}
+
 impl TerrainPlugin {
     fn create_terrain(settings: Res<TerrainSettings>, mut commands: Commands) {
         // test chunks
         for x in -5..6 {
             for y in -5..6 {
                 for z in -5..6 {
-                    commands.spawn(Chunk::new(
-                        &settings.fbm,
-                        settings.cell_noise_scale,
-                        x,
-                        y,
-                        z,
-                    ));
+                    commands
+                        .spawn((
+                            Chunk::new(&settings.fbm, settings.cell_noise_scale, x, y, z),
+                            SpatialBundle { ..default() }, // required for children
+                        ))
+                        // FIXME
+                        // need at least 1 child for the update query to work...
+                        .with_children(|parent| {
+                            parent.spawn(Empty {});
+                        });
                 }
             }
         }
@@ -66,7 +72,7 @@ impl TerrainPlugin {
             }
             let mesh_valid = chunk.mesh.is_some();
 
-            let should_destroy = mesh_updated || !mesh_valid;
+            let should_destroy = mesh_updated;
             let should_spawn = mesh_updated && mesh_valid;
 
             if should_destroy {
@@ -81,34 +87,37 @@ impl TerrainPlugin {
                     commands.entity(*child).despawn_recursive();
                 }
 
-                chunk.mesh = None;
                 chunk.mesh_handle = None;
                 chunk.material_handle = None;
                 chunk.collider = None;
             }
 
             if should_spawn {
-                chunk.mesh_handle = Some(meshes.add(chunk.mesh.unwrap()));
-                let shape = ComputedColliderShape::TriMesh;
-                chunk.collider = Collider::from_bevy_mesh(&chunk.mesh.unwrap(), &shape);
+                // TODO: fix all the clones
+                if let Some(mesh) = chunk.mesh.clone() {
+                    let mesh_handle = meshes.add(mesh.clone());
+                    chunk.mesh_handle = Some(mesh_handle.clone());
+                    let shape = ComputedColliderShape::TriMesh;
+                    chunk.collider = Collider::from_bevy_mesh(&mesh, &shape);
 
-                let pbr_id = commands
-                    .spawn(PbrBundle {
-                        mesh: chunk.mesh_handle.unwrap(),
-                        material: materials.add(StandardMaterial {
-                            base_color: Color::GRAY,
-                            metallic: 0.0,
-                            perceptual_roughness: 0.6,
+                    let pbr_id = commands
+                        .spawn(PbrBundle {
+                            mesh: mesh_handle,
+                            material: materials.add(StandardMaterial {
+                                base_color: Color::GRAY,
+                                metallic: 0.0,
+                                perceptual_roughness: 0.6,
+                                ..default()
+                            }),
                             ..default()
-                        }),
-                        ..default()
-                    })
-                    .id();
+                        })
+                        .id();
 
-                let col_id = commands.spawn(chunk.collider.unwrap()).id();
+                    let col_id = commands.spawn(chunk.collider.clone().unwrap()).id();
 
-                commands.entity(chunk_id).add_child(pbr_id);
-                commands.entity(chunk_id).add_child(col_id);
+                    commands.entity(chunk_id).add_child(pbr_id);
+                    commands.entity(chunk_id).add_child(col_id);
+                }
             }
         }
     }
@@ -120,6 +129,7 @@ impl Plugin for TerrainPlugin {
             fbm: Fbm::<Perlin>::new(self.seed),
             cell_noise_scale: 0.02,
         })
+        .add_event::<TerrainCellEvent>()
         .add_systems(Startup, Self::create_terrain)
         .add_systems(Update, Self::read_terrain_events)
         .add_systems(Update, Self::update_chunks);

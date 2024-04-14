@@ -123,6 +123,7 @@ impl PlayerPlugin {
                         },
                         projection: PerspectiveProjection {
                             fov: 60.0_f32.to_radians(),
+                            far: 60.0,
                             ..default()
                         }
                         .into(),

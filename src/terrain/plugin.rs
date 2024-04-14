@@ -56,7 +56,7 @@ impl TerrainPlugin {
         settings: Res<TerrainSettings>,
     ) {
         for player_trans in &q_player {
-            let chunk_spawn_range = 8;
+            let chunk_spawn_range = 4;
             let player_chunk = IVec3 {
                 x: f32::floor(player_trans.translation.x / CHUNK_CUBE_SIZE as f32) as i32,
                 y: f32::floor(player_trans.translation.y / CHUNK_CUBE_SIZE as f32) as i32,

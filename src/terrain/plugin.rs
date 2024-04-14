@@ -1,8 +1,9 @@
 use std::borrow::BorrowMut;
 
 use bevy::prelude::*;
-use bevy::reflect::List;
 use bevy_rapier3d::geometry::{Collider, ComputedColliderShape};
+use bevy_rapier3d::pipeline::QueryFilter;
+use bevy_rapier3d::plugin::RapierContext;
 use noise::{Fbm, Perlin};
 
 use super::super::player::plugin::Player;
@@ -20,8 +21,10 @@ pub struct TerrainSettings {
 
 #[derive(Event, Debug)]
 pub struct TerrainCellEvent {
-    world_pos: IVec3,
-    value: f32,
+    pub origin: Vec3,
+    pub dir: Vec3,
+    pub value: f32,
+    pub radius: f32,
 }
 
 #[derive(Component)]
@@ -105,11 +108,67 @@ impl TerrainPlugin {
     fn read_terrain_events(
         mut events: EventReader<TerrainCellEvent>,
         mut q_chunks: Query<&mut Chunk>,
+        q_colliders: Query<&Parent, With<Collider>>,
+        q_player: Query<Entity, With<Player>>,
+        rapier_context: Res<RapierContext>,
     ) {
         for event in events.read() {
-            for mut chunk in &mut q_chunks {
-                if chunk.is_in_chunk(event.world_pos) {
-                    chunk.edit(event.world_pos, event.value);
+            let max_dist = 10.0;
+            let query_filter = QueryFilter {
+                exclude_collider: Some(q_player.get_single().unwrap()),
+                ..default()
+            };
+            if let Some((collider_id, toi)) =
+                rapier_context.cast_ray(event.origin, event.dir, max_dist, true, query_filter)
+            {
+                let end_pos = event.origin + event.dir * toi;
+
+                if let Ok(chunk_id) = q_colliders.get(collider_id) {
+                    if let Ok(mut chunk) = q_chunks.get_mut(chunk_id.get()) {
+                        // the chunk we hit
+                        chunk.edit(end_pos, event);
+
+                        // neighboring chunks if near edge
+                        // FIXME this sucks
+                        // FIXME also causes gaps between chunks
+                        let neg_x = (end_pos.x % CHUNK_CUBE_SIZE as f32) < event.radius;
+                        let pos_x = (end_pos.x % CHUNK_CUBE_SIZE as f32)
+                            > CHUNK_CUBE_SIZE as f32 - event.radius;
+                        let neg_y = (end_pos.y % CHUNK_CUBE_SIZE as f32) < event.radius;
+                        let pos_y = (end_pos.y % CHUNK_CUBE_SIZE as f32)
+                            > CHUNK_CUBE_SIZE as f32 - event.radius;
+                        let neg_z = (end_pos.z % CHUNK_CUBE_SIZE as f32) < event.radius;
+                        let pos_z = (end_pos.z % CHUNK_CUBE_SIZE as f32)
+                            > CHUNK_CUBE_SIZE as f32 - event.radius;
+
+                        let mut other_chunks: Vec<IVec3> = Vec::new();
+                        if neg_x {
+                            other_chunks.push(chunk.position + IVec3 { x: -1, y: 0, z: 0 });
+                        }
+                        if pos_x {
+                            other_chunks.push(chunk.position + IVec3 { x: 1, y: 0, z: 0 });
+                        }
+                        if neg_y {
+                            other_chunks.push(chunk.position + IVec3 { x: 0, y: -1, z: 0 });
+                        }
+                        if pos_y {
+                            other_chunks.push(chunk.position + IVec3 { x: 0, y: 1, z: 0 });
+                        }
+                        if neg_z {
+                            other_chunks.push(chunk.position + IVec3 { x: 0, y: 0, z: -1 });
+                        }
+                        if pos_z {
+                            other_chunks.push(chunk.position + IVec3 { x: 0, y: 0, z: 1 });
+                        }
+
+                        for mut chunk in q_chunks.iter_mut() {
+                            for v in &other_chunks {
+                                if chunk.position == *v {
+                                    chunk.edit(end_pos, event);
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

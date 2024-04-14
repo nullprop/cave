@@ -5,7 +5,7 @@ use bevy::{
 use bevy_rapier3d::geometry::Collider;
 use noise::{Fbm, NoiseFn, Perlin};
 
-use super::marching_cube::*;
+use super::{marching_cube::*, plugin::TerrainCellEvent};
 
 pub const CHUNK_CUBE_SIZE: usize = 16;
 
@@ -43,29 +43,62 @@ impl Chunk {
         return chunk;
     }
 
-    pub fn is_in_chunk(&self, world_pos: IVec3) -> bool {
+    pub fn is_in_chunk(&self, world_pos: Vec3) -> bool {
         let min = self.position * CHUNK_CUBE_SIZE as i32;
         let max = min + IVec3::ONE * CHUNK_CUBE_SIZE as i32; // inclusive
 
-        if world_pos.x < min.x || world_pos.y < min.y || world_pos.z < min.z {
+        if world_pos.x < min.x as f32 || world_pos.y < min.y as f32 || world_pos.z < min.z as f32 {
             return false;
         }
-        if world_pos.x > max.x || world_pos.y > max.y || world_pos.z > max.z {
+        if world_pos.x > max.x as f32 || world_pos.y > max.y as f32 || world_pos.z > max.z as f32 {
             return false;
         }
 
         return true;
     }
 
-    pub fn edit(&mut self, world_pos: IVec3, value: f32) {
-        let cell_pos = self.world_to_cell(world_pos);
-        let index = Self::cell_to_index(
-            cell_pos.x as usize,
-            cell_pos.y as usize,
-            cell_pos.z as usize,
-        );
-        self.cells[index] = value;
-        self.is_dirty = true;
+    pub fn edit(&mut self, end_pos: Vec3, event: &TerrainCellEvent) {
+        let min = end_pos - event.radius;
+        let max = end_pos + event.radius;
+
+        let mut int_min = IVec3 {
+            x: min.x.round() as i32,
+            y: min.y.round() as i32,
+            z: min.z.round() as i32,
+        };
+        let mut int_max = IVec3 {
+            x: max.x.round() as i32,
+            y: max.y.round() as i32,
+            z: max.z.round() as i32,
+        };
+
+        let chunk_min = self.position * CHUNK_CUBE_SIZE as i32; // inclusive
+        let chunk_max = chunk_min + IVec3::ONE * CHUNK_CUBE_SIZE as i32; // inclusive
+
+        if int_min.x > chunk_max.x || int_min.y > chunk_max.y || int_min.z > chunk_max.z {
+            return;
+        }
+        if int_max.x < chunk_min.x || int_max.y < chunk_min.y || int_max.z < chunk_min.z {
+            return;
+        }
+
+        int_min = int_min.clamp(chunk_min, chunk_max);
+        int_max = int_max.clamp(chunk_min, chunk_max);
+
+        for x in int_min.x..(int_max.x + 1) {
+            for y in int_min.y..(int_max.y + 1) {
+                for z in int_min.z..(int_max.z + 1) {
+                    let cell_pos = self.world_to_cell(IVec3 { x, y, z });
+                    let index = Self::cell_to_index(
+                        cell_pos.x as usize,
+                        cell_pos.y as usize,
+                        cell_pos.z as usize,
+                    );
+                    self.cells[index] = event.value;
+                    self.is_dirty = true;
+                }
+            }
+        }
     }
 
     fn generate_noise(&mut self, fbm: &Fbm<Perlin>, cell_noise_scale: f64) {

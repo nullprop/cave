@@ -11,6 +11,8 @@ use bevy_rapier3d::{
     prelude::KinematicCharacterController,
 };
 
+use crate::terrain::plugin::TerrainCellEvent;
+
 pub struct PlayerPlugin {}
 
 #[derive(Component, Default)]
@@ -164,6 +166,7 @@ impl PlayerPlugin {
     // move the translation, etc. to update.
     fn player_input(
         mut mouse: EventReader<MouseMotion>,
+        mouse_buttons: Res<ButtonInput<MouseButton>>,
         kb_input: Res<ButtonInput<KeyCode>>,
         mut q_parent: Query<(
             Entity,
@@ -175,6 +178,7 @@ impl PlayerPlugin {
         q_light: Query<Entity, With<PlayerLightTag>>,
         mut q_trans: Query<&mut Transform, With<PlayerTag>>,
         time: Res<Time>,
+        mut events: EventWriter<TerrainCellEvent>,
     ) {
         let mut mouse_move = Vec2 { x: 0.0, y: 0.0 };
         for ev in mouse.read() {
@@ -303,6 +307,23 @@ impl PlayerPlugin {
 
                     let movement = player.velocity * time.delta_seconds();
                     controller.translation = Some(movement);
+                }
+
+                if mouse_buttons.just_pressed(MouseButton::Left) {
+                    events.send(TerrainCellEvent {
+                        origin: player_transform.translation,
+                        dir: cam_fwd,
+                        value: 1.0,
+                        radius: 1.5,
+                    });
+                }
+                if mouse_buttons.just_pressed(MouseButton::Right) {
+                    events.send(TerrainCellEvent {
+                        origin: player_transform.translation,
+                        dir: cam_fwd,
+                        value: 0.0,
+                        radius: 1.5,
+                    });
                 }
             }
         }

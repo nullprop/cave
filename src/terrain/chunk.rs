@@ -2,12 +2,12 @@ use bevy::{
     prelude::*,
     render::{mesh::Indices, render_asset::RenderAssetUsages},
 };
-use bevy_rapier3d::geometry::{Collider, ComputedColliderShape};
+use bevy_rapier3d::geometry::Collider;
 use noise::{Fbm, NoiseFn, Perlin};
 
 use super::marching_cube::*;
 
-const CHUNK_CUBE_SIZE: usize = 16;
+pub const CHUNK_CUBE_SIZE: usize = 16;
 
 const CELL_GRID_SIZE: usize = CHUNK_CUBE_SIZE + 1;
 const CELL_GRID_SIZE_2: usize = CELL_GRID_SIZE * CELL_GRID_SIZE;
@@ -18,6 +18,7 @@ pub struct Chunk {
     pub position: IVec3,
     pub cells: [f32; CELL_GRID_SIZE_3],
     pub is_dirty: bool,
+    pub should_destroy: bool,
     pub mesh: Option<Mesh>,
     pub mesh_handle: Option<Handle<Mesh>>,
     pub material_handle: Option<Handle<StandardMaterial>>,
@@ -30,6 +31,7 @@ impl Chunk {
             position: IVec3 { x, y, z },
             cells: [0.0; CELL_GRID_SIZE_3],
             is_dirty: true,
+            should_destroy: false,
             mesh: None,
             mesh_handle: None,
             material_handle: None,

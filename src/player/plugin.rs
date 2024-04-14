@@ -19,8 +19,9 @@ struct CameraAngles {
 }
 
 #[derive(Component, Default)]
-struct Player {
+pub struct Player {
     noclip: bool,
+    noclip_speed: f32,
     yaw: f32,
     velocity: Vec3,
     accel: f32,
@@ -75,6 +76,7 @@ impl PlayerPlugin {
         commands
             .spawn(PlayerBundle {
                 player: Player {
+                    noclip_speed: 20.0,
                     max_vel_ground: 5.0,
                     max_vel_air: 8.0,
                     max_fall_vel: 30.0,
@@ -239,8 +241,7 @@ impl PlayerPlugin {
                 cam_fwd = player_transform.rotation.mul_vec3(cam_fwd);
 
                 if player.noclip {
-                    let move_speed = 5.0;
-                    let delta = move_speed * time.delta_seconds();
+                    let delta = player.noclip_speed * time.delta_seconds();
 
                     if kb_input.pressed(KeyCode::KeyE) {
                         player_transform.translation += cam_fwd * delta;

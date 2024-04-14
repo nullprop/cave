@@ -40,7 +40,14 @@ fn main() {
             color: Color::WHITE,
             brightness: 50.0, // wtf is the camera exposure
         })
-        .add_plugins(DefaultPlugins)
+        .add_plugins(DefaultPlugins.set(WindowPlugin {
+            primary_window: Some(Window {
+                title: "Luola".into(),
+                resolution: (1920.0, 1080.0).into(),
+                ..default()
+            }),
+            ..default()
+        }))
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::default())
         .add_plugins(RapierDebugRenderPlugin {
             enabled: false,

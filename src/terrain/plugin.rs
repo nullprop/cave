@@ -56,7 +56,7 @@ impl TerrainPlugin {
         settings: Res<TerrainSettings>,
     ) {
         for player_trans in &q_player {
-            let chunk_spawn_range = 5;
+            let chunk_spawn_range = 8;
             let player_chunk = IVec3 {
                 x: f32::floor(player_trans.translation.x / CHUNK_CUBE_SIZE as f32) as i32,
                 y: f32::floor(player_trans.translation.y / CHUNK_CUBE_SIZE as f32) as i32,
@@ -90,6 +90,12 @@ impl TerrainPlugin {
             }
 
             let max_spawn_per_frame = 1;
+            wanted_chunks.sort_by(|a, b| {
+                return (*a - player_chunk)
+                    .length_squared()
+                    .cmp(&(*b - player_chunk).length_squared());
+            });
+
             for i in 0..usize::min(wanted_chunks.len(), max_spawn_per_frame) {
                 Self::spawn_chunk(commands.borrow_mut(), &settings, wanted_chunks[i]);
             }

@@ -5,7 +5,10 @@ use bevy::{
 use bevy_rapier3d::geometry::Collider;
 use noise::{Fbm, NoiseFn, Perlin};
 
-use super::{marching_cube::*, plugin::TerrainCellEvent};
+use super::{
+    marching_cube::*,
+    plugin::{TerrainCellEvent, TerrainEditShape},
+};
 
 pub const CHUNK_CUBE_SIZE: usize = 16;
 
@@ -58,47 +61,78 @@ impl Chunk {
     }
 
     pub fn edit(&mut self, end_pos: Vec3, event: &TerrainCellEvent) {
-        let min = end_pos - event.radius;
-        let max = end_pos + event.radius;
+        let mut cells_to_edit = Vec::new();
 
-        let mut int_min = IVec3 {
-            x: min.x.round() as i32,
-            y: min.y.round() as i32,
-            z: min.z.round() as i32,
-        };
-        let mut int_max = IVec3 {
-            x: max.x.round() as i32,
-            y: max.y.round() as i32,
-            z: max.z.round() as i32,
-        };
+        match event.shape {
+            TerrainEditShape::Sphere(radius) => {
+                let min = end_pos - radius;
+                let max = end_pos + radius;
 
-        let chunk_min = self.position * CHUNK_CUBE_SIZE as i32; // inclusive
-        let chunk_max = chunk_min + IVec3::ONE * CHUNK_CUBE_SIZE as i32; // inclusive
+                let mut int_min = IVec3 {
+                    x: min.x.round() as i32,
+                    y: min.y.round() as i32,
+                    z: min.z.round() as i32,
+                };
+                let mut int_max = IVec3 {
+                    x: max.x.round() as i32,
+                    y: max.y.round() as i32,
+                    z: max.z.round() as i32,
+                };
 
-        if int_min.x > chunk_max.x || int_min.y > chunk_max.y || int_min.z > chunk_max.z {
-            return;
-        }
-        if int_max.x < chunk_min.x || int_max.y < chunk_min.y || int_max.z < chunk_min.z {
-            return;
-        }
+                let chunk_min = self.position * CHUNK_CUBE_SIZE as i32; // inclusive
+                let chunk_max = chunk_min + IVec3::ONE * CHUNK_CUBE_SIZE as i32; // inclusive
 
-        int_min = int_min.clamp(chunk_min, chunk_max);
-        int_max = int_max.clamp(chunk_min, chunk_max);
+                if int_min.x > chunk_max.x || int_min.y > chunk_max.y || int_min.z > chunk_max.z {
+                    return;
+                }
+                if int_max.x < chunk_min.x || int_max.y < chunk_min.y || int_max.z < chunk_min.z {
+                    return;
+                }
 
-        for x in int_min.x..(int_max.x + 1) {
-            for y in int_min.y..(int_max.y + 1) {
-                for z in int_min.z..(int_max.z + 1) {
-                    let cell_pos = self.world_to_cell(IVec3 { x, y, z });
-                    let index = Self::cell_to_index(
-                        cell_pos.x as usize,
-                        cell_pos.y as usize,
-                        cell_pos.z as usize,
-                    );
-                    self.cells[index] = event.value;
-                    self.is_dirty = true;
+                int_min = int_min.clamp(chunk_min, chunk_max);
+                int_max = int_max.clamp(chunk_min, chunk_max);
+
+                for x in int_min.x..(int_max.x + 1) {
+                    for y in int_min.y..(int_max.y + 1) {
+                        for z in int_min.z..(int_max.z + 1) {
+                            let cell_pos = self.world_to_cell(IVec3 { x, y, z });
+                            let index = Self::cell_to_index(
+                                cell_pos.x as usize,
+                                cell_pos.y as usize,
+                                cell_pos.z as usize,
+                            );
+                            cells_to_edit.push(index);
+                        }
+                    }
                 }
             }
         }
+
+        for index in cells_to_edit {
+            self.cells[index] = event.value;
+            self.is_dirty = true;
+        }
+    }
+
+    // Gets all neighboring chunk positions,
+    // including diagonals.
+    pub fn get_neighbors(&self) -> [IVec3; 26] {
+        let mut neighbors = [self.position; 26];
+        let mut i = 0;
+        for x in -1..2 {
+            for y in -1..2 {
+                for z in -1..2 {
+                    if x == 0 && y == 0 && z == 0 {
+                        continue;
+                    }
+                    neighbors[i].x += x;
+                    neighbors[i].y += y;
+                    neighbors[i].z += z;
+                    i += 1;
+                }
+            }
+        }
+        return neighbors;
     }
 
     fn generate_noise(&mut self, fbm: &Fbm<Perlin>, cell_noise_scale: f64) {

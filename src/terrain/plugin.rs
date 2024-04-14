@@ -19,12 +19,17 @@ pub struct TerrainSettings {
     cell_noise_scale: f64,
 }
 
+#[derive(Debug)]
+pub enum TerrainEditShape {
+    Sphere(f32),
+}
+
 #[derive(Event, Debug)]
 pub struct TerrainCellEvent {
     pub origin: Vec3,
     pub dir: Vec3,
     pub value: f32,
-    pub radius: f32,
+    pub shape: TerrainEditShape,
 }
 
 #[derive(Component)]
@@ -122,50 +127,26 @@ impl TerrainPlugin {
                 rapier_context.cast_ray(event.origin, event.dir, max_dist, true, query_filter)
             {
                 let end_pos = event.origin + event.dir * toi;
+                let mut hit_chunk = None;
 
                 if let Ok(chunk_id) = q_colliders.get(collider_id) {
                     if let Ok(mut chunk) = q_chunks.get_mut(chunk_id.get()) {
-                        // the chunk we hit
                         chunk.edit(end_pos, event);
+                        hit_chunk = Some(chunk);
+                    }
+                }
 
-                        // neighboring chunks if near edge
-                        // FIXME this sucks
-                        // FIXME also causes gaps between chunks
-                        let neg_x = (end_pos.x % CHUNK_CUBE_SIZE as f32) < event.radius;
-                        let pos_x = (end_pos.x % CHUNK_CUBE_SIZE as f32)
-                            > CHUNK_CUBE_SIZE as f32 - event.radius;
-                        let neg_y = (end_pos.y % CHUNK_CUBE_SIZE as f32) < event.radius;
-                        let pos_y = (end_pos.y % CHUNK_CUBE_SIZE as f32)
-                            > CHUNK_CUBE_SIZE as f32 - event.radius;
-                        let neg_z = (end_pos.z % CHUNK_CUBE_SIZE as f32) < event.radius;
-                        let pos_z = (end_pos.z % CHUNK_CUBE_SIZE as f32)
-                            > CHUNK_CUBE_SIZE as f32 - event.radius;
-
-                        let mut other_chunks: Vec<IVec3> = Vec::new();
-                        if neg_x {
-                            other_chunks.push(chunk.position + IVec3 { x: -1, y: 0, z: 0 });
-                        }
-                        if pos_x {
-                            other_chunks.push(chunk.position + IVec3 { x: 1, y: 0, z: 0 });
-                        }
-                        if neg_y {
-                            other_chunks.push(chunk.position + IVec3 { x: 0, y: -1, z: 0 });
-                        }
-                        if pos_y {
-                            other_chunks.push(chunk.position + IVec3 { x: 0, y: 1, z: 0 });
-                        }
-                        if neg_z {
-                            other_chunks.push(chunk.position + IVec3 { x: 0, y: 0, z: -1 });
-                        }
-                        if pos_z {
-                            other_chunks.push(chunk.position + IVec3 { x: 0, y: 0, z: 1 });
-                        }
-
-                        for mut chunk in q_chunks.iter_mut() {
-                            for v in &other_chunks {
-                                if chunk.position == *v {
-                                    chunk.edit(end_pos, event);
-                                }
+                // edit neighboring chunks if near edge
+                if let Some(hit) = hit_chunk {
+                    // todo:
+                    // filter to chunks actually in range.
+                    // no need to check all 26 if in one corner.
+                    // also disallows radiuses larger than 1 chunk...
+                    let neighbors = hit.get_neighbors();
+                    for mut chunk in q_chunks.iter_mut() {
+                        for nb in neighbors {
+                            if chunk.position == nb {
+                                chunk.edit(end_pos, event);
                             }
                         }
                     }

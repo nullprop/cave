@@ -11,7 +11,7 @@ use bevy_rapier3d::{
     prelude::KinematicCharacterController,
 };
 
-use crate::terrain::plugin::TerrainCellEvent;
+use crate::terrain::plugin::{TerrainCellEvent, TerrainEditShape};
 
 pub struct PlayerPlugin {}
 
@@ -311,18 +311,18 @@ impl PlayerPlugin {
 
                 if mouse_buttons.just_pressed(MouseButton::Left) {
                     events.send(TerrainCellEvent {
-                        origin: player_transform.translation,
+                        origin: player_transform.translation + Vec3::Y * player.camera_height,
                         dir: cam_fwd,
                         value: 1.0,
-                        radius: 1.5,
+                        shape: TerrainEditShape::Sphere(0.5),
                     });
                 }
                 if mouse_buttons.just_pressed(MouseButton::Right) {
                     events.send(TerrainCellEvent {
-                        origin: player_transform.translation,
+                        origin: player_transform.translation + Vec3::Y * player.camera_height,
                         dir: cam_fwd,
                         value: 0.0,
-                        radius: 1.5,
+                        shape: TerrainEditShape::Sphere(0.5),
                     });
                 }
             }

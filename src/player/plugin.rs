@@ -11,7 +11,7 @@ use bevy_rapier3d::{
     prelude::KinematicCharacterController,
 };
 
-use crate::terrain::chunk::CHUNK_CUBE_SIZE;
+use crate::terrain::chunk::{CellType, CHUNK_CUBE_SIZE};
 use crate::terrain::plugin::{TerrainCellEvent, TerrainEditShape, RENDER_DISTANCE_CHUNKS};
 
 const RENDER_DISTANCE: f32 = CHUNK_CUBE_SIZE as f32 * RENDER_DISTANCE_CHUNKS as f32;
@@ -85,7 +85,7 @@ impl PlayerPlugin {
         commands
             .spawn(PlayerBundle {
                 player: Player {
-                    noclip_speed: 20.0,
+                    noclip_speed: 40.0,
                     max_vel_ground: 5.0,
                     max_vel_air: 8.0,
                     max_fall_vel: 30.0,
@@ -328,6 +328,7 @@ impl PlayerPlugin {
                         dir: cam_fwd,
                         value: 1.0,
                         shape: TerrainEditShape::Sphere(0.5),
+                        cell_type: None,
                     });
                 }
                 if mouse_buttons.just_pressed(MouseButton::Right) {
@@ -336,6 +337,7 @@ impl PlayerPlugin {
                         dir: cam_fwd,
                         value: 0.0,
                         shape: TerrainEditShape::Sphere(0.5),
+                        cell_type: Some(CellType::Stone),
                     });
                 }
             }

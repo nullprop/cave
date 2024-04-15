@@ -16,10 +16,27 @@ const CELL_GRID_SIZE: usize = CHUNK_CUBE_SIZE + 1;
 const CELL_GRID_SIZE_2: usize = CELL_GRID_SIZE * CELL_GRID_SIZE;
 const CELL_GRID_SIZE_3: usize = CELL_GRID_SIZE_2 * CELL_GRID_SIZE;
 
+#[derive(Copy, Clone, Default, Debug)]
+pub enum CellType {
+    #[default]
+    Stone,
+    Granite,
+    Dirt,
+    Iron,
+    Gold,
+    Ruby,
+}
+
+#[derive(Copy, Clone, Default)]
+pub struct Cell {
+    pub value: f32,
+    pub cell_type: CellType,
+}
+
 #[derive(Component)]
 pub struct Chunk {
     pub position: IVec3,
-    pub cells: [f32; CELL_GRID_SIZE_3],
+    pub cells: [Cell; CELL_GRID_SIZE_3],
     pub is_dirty: bool,
     pub should_destroy: bool,
     pub mesh: Option<Mesh>,
@@ -29,10 +46,18 @@ pub struct Chunk {
 }
 
 impl Chunk {
-    pub fn new(fbm: &Fbm<Perlin>, cell_noise_scale: f64, x: i32, y: i32, z: i32) -> Self {
+    pub fn new(
+        fbm: &Fbm<Perlin>,
+        cell_noise_scale: f64,
+        type_noise: Perlin,
+        type_noise_scale: f64,
+        x: i32,
+        y: i32,
+        z: i32,
+    ) -> Self {
         let mut chunk = Chunk {
             position: IVec3 { x, y, z },
-            cells: [0.0; CELL_GRID_SIZE_3],
+            cells: [Cell::default(); CELL_GRID_SIZE_3],
             is_dirty: true,
             should_destroy: false,
             mesh: None,
@@ -41,7 +66,7 @@ impl Chunk {
             collider: None,
         };
 
-        chunk.generate_noise(fbm, cell_noise_scale);
+        chunk.generate_noise(fbm, cell_noise_scale, type_noise, type_noise_scale);
 
         return chunk;
     }
@@ -109,7 +134,10 @@ impl Chunk {
         }
 
         for index in cells_to_edit {
-            self.cells[index] = event.value;
+            self.cells[index].value = event.value;
+            if let Some(t) = event.cell_type {
+                self.cells[index].cell_type = t;
+            }
             self.is_dirty = true;
         }
     }
@@ -135,7 +163,13 @@ impl Chunk {
         return neighbors;
     }
 
-    fn generate_noise(&mut self, fbm: &Fbm<Perlin>, cell_noise_scale: f64) {
+    fn generate_noise(
+        &mut self,
+        fbm: &Fbm<Perlin>,
+        cell_noise_scale: f64,
+        type_noise: Perlin,
+        type_noise_scale: f64,
+    ) {
         for cell_x in 0..CELL_GRID_SIZE {
             for cell_y in 0..CELL_GRID_SIZE {
                 for cell_z in 0..CELL_GRID_SIZE {
@@ -146,10 +180,53 @@ impl Chunk {
                         cell_world.y as f64 * cell_noise_scale,
                         cell_world.z as f64 * cell_noise_scale,
                     ];
-                    self.cells[index] = (fbm.get(cell_world_f) as f32) * 0.5 + 0.5;
+                    let type_world_f = [
+                        cell_world.x as f64 * type_noise_scale,
+                        cell_world.y as f64 * type_noise_scale,
+                        cell_world.z as f64 * type_noise_scale,
+                    ];
+                    self.cells[index].value = (fbm.get(cell_world_f) as f32) * 0.5 + 0.5;
+                    self.cells[index].cell_type =
+                        Self::get_cell_type(type_noise.get(type_world_f) as f32 * 0.5 + 0.5);
                 }
             }
         }
+    }
+
+    // TODO: just pass cell type to shader and have a list of colors, etc.
+    fn get_cell_color(cell_type: CellType) -> Vec4 {
+        match cell_type {
+            CellType::Stone => Vec4::new(0.4, 0.4, 0.4, 1.0),
+            CellType::Granite => Vec4::new(1.0, 1.0, 1.0, 1.0),
+            CellType::Dirt => Vec4::new(0.3, 0.15, 0.1, 1.0),
+            CellType::Iron => Vec4::new(0.6, 0.3, 0.0, 1.0),
+            CellType::Gold => Vec4::new(1.0, 0.8, 0.1, 1.0),
+            CellType::Ruby => Vec4::new(1.0, 0.0, 0.0, 1.0),
+        }
+    }
+
+    fn get_cell_type(value: f32) -> CellType {
+        if value < 0.2 {
+            return CellType::Dirt;
+        }
+
+        if value > 0.3 && value < 0.4 {
+            return CellType::Granite;
+        }
+
+        if value > 0.6 && value < 0.64 {
+            return CellType::Iron;
+        }
+
+        if value > 0.8 && value < 0.82 {
+            return CellType::Gold;
+        }
+
+        if value > 0.9 && value < 0.91 {
+            return CellType::Ruby;
+        }
+
+        return CellType::Stone;
     }
 
     fn cell_to_world(&self, cell_x: usize, cell_y: usize, cell_z: usize) -> IVec3 {
@@ -200,19 +277,20 @@ impl Chunk {
     pub fn polygonize(&mut self) -> Option<Mesh> {
         self.is_dirty = false;
         let mut mesh_verts = Vec::new();
+        let mut mesh_colors: Vec<Vec4> = Vec::new();
 
         for cube_x in 0..CHUNK_CUBE_SIZE {
             for cube_y in 0..CHUNK_CUBE_SIZE {
                 for cube_z in 0..CHUNK_CUBE_SIZE {
                     let iso_level: f32 = 0.5;
                     let corner_indices = Self::cube_to_cell_indices(cube_x, cube_y, cube_z);
-                    let values = corner_indices.map(|i| self.cells[i]);
+                    let corner_cells = corner_indices.map(|i| self.cells[i]);
 
                     // Determine the index into the edge table, which
                     // tells us which vertices are inside of the surface.
                     let mut cube_index = 0;
                     for i in 0..8 {
-                        if values[i] < iso_level {
+                        if corner_cells[i].value < iso_level {
                             cube_index |= 1 << i;
                         }
                     }
@@ -233,79 +311,132 @@ impl Chunk {
                         });
 
                     let mut vertices = [Vec3::default(); 12];
+                    let mut types = [CellType::default(); 12];
 
                     // Find the vertices where the surface intersects the cube.
                     if (edge & 1) == 1 {
-                        vertices[0] = mc_interpolate_vertex(
-                            iso_level, corners[0], corners[1], values[0], values[1],
+                        (vertices[0], types[0]) = mc_interpolate_vertex(
+                            iso_level,
+                            corners[0],
+                            corners[1],
+                            corner_cells[0],
+                            corner_cells[1],
                         );
                     }
                     if (edge & 2) == 2 {
-                        vertices[1] = mc_interpolate_vertex(
-                            iso_level, corners[1], corners[2], values[1], values[2],
+                        (vertices[1], types[1]) = mc_interpolate_vertex(
+                            iso_level,
+                            corners[1],
+                            corners[2],
+                            corner_cells[1],
+                            corner_cells[2],
                         );
                     }
                     if (edge & 4) == 4 {
-                        vertices[2] = mc_interpolate_vertex(
-                            iso_level, corners[2], corners[3], values[2], values[3],
+                        (vertices[2], types[2]) = mc_interpolate_vertex(
+                            iso_level,
+                            corners[2],
+                            corners[3],
+                            corner_cells[2],
+                            corner_cells[3],
                         );
                     }
                     if (edge & 8) == 8 {
-                        vertices[3] = mc_interpolate_vertex(
-                            iso_level, corners[3], corners[0], values[3], values[0],
+                        (vertices[3], types[3]) = mc_interpolate_vertex(
+                            iso_level,
+                            corners[3],
+                            corners[0],
+                            corner_cells[3],
+                            corner_cells[0],
                         );
                     }
                     if (edge & 16) == 16 {
-                        vertices[4] = mc_interpolate_vertex(
-                            iso_level, corners[4], corners[5], values[4], values[5],
+                        (vertices[4], types[4]) = mc_interpolate_vertex(
+                            iso_level,
+                            corners[4],
+                            corners[5],
+                            corner_cells[4],
+                            corner_cells[5],
                         );
                     }
                     if (edge & 32) == 32 {
-                        vertices[5] = mc_interpolate_vertex(
-                            iso_level, corners[5], corners[6], values[5], values[6],
+                        (vertices[5], types[5]) = mc_interpolate_vertex(
+                            iso_level,
+                            corners[5],
+                            corners[6],
+                            corner_cells[5],
+                            corner_cells[6],
                         );
                     }
                     if (edge & 64) == 64 {
-                        vertices[6] = mc_interpolate_vertex(
-                            iso_level, corners[6], corners[7], values[6], values[7],
+                        (vertices[6], types[6]) = mc_interpolate_vertex(
+                            iso_level,
+                            corners[6],
+                            corners[7],
+                            corner_cells[6],
+                            corner_cells[7],
                         );
                     }
                     if (edge & 128) == 128 {
-                        vertices[7] = mc_interpolate_vertex(
-                            iso_level, corners[7], corners[4], values[7], values[4],
+                        (vertices[7], types[7]) = mc_interpolate_vertex(
+                            iso_level,
+                            corners[7],
+                            corners[4],
+                            corner_cells[7],
+                            corner_cells[4],
                         );
                     }
                     if (edge & 256) == 256 {
-                        vertices[8] = mc_interpolate_vertex(
-                            iso_level, corners[0], corners[4], values[0], values[4],
+                        (vertices[8], types[8]) = mc_interpolate_vertex(
+                            iso_level,
+                            corners[0],
+                            corners[4],
+                            corner_cells[0],
+                            corner_cells[4],
                         );
                     }
                     if (edge & 512) == 512 {
-                        vertices[9] = mc_interpolate_vertex(
-                            iso_level, corners[1], corners[5], values[1], values[5],
+                        (vertices[9], types[9]) = mc_interpolate_vertex(
+                            iso_level,
+                            corners[1],
+                            corners[5],
+                            corner_cells[1],
+                            corner_cells[5],
                         );
                     }
                     if (edge & 1024) == 1024 {
-                        vertices[10] = mc_interpolate_vertex(
-                            iso_level, corners[2], corners[6], values[2], values[6],
+                        (vertices[10], types[10]) = mc_interpolate_vertex(
+                            iso_level,
+                            corners[2],
+                            corners[6],
+                            corner_cells[2],
+                            corner_cells[6],
                         );
                     }
                     if (edge & 2048) == 2048 {
-                        vertices[11] = mc_interpolate_vertex(
-                            iso_level, corners[3], corners[7], values[3], values[7],
+                        (vertices[11], types[11]) = mc_interpolate_vertex(
+                            iso_level,
+                            corners[3],
+                            corners[7],
+                            corner_cells[3],
+                            corner_cells[7],
                         );
                     }
 
                     // Create the triangle.
                     let mut idx = 0;
                     while MC_TRI_TABLE[cube_index][idx] != -1 {
-                        let v1 = vertices[MC_TRI_TABLE[cube_index][idx] as usize];
-                        let v2 = vertices[MC_TRI_TABLE[cube_index][idx + 1] as usize];
-                        let v3 = vertices[MC_TRI_TABLE[cube_index][idx + 2] as usize];
+                        let i1 = MC_TRI_TABLE[cube_index][idx] as usize;
+                        let i2 = MC_TRI_TABLE[cube_index][idx + 1] as usize;
+                        let i3 = MC_TRI_TABLE[cube_index][idx + 2] as usize;
 
-                        mesh_verts.push(v1);
-                        mesh_verts.push(v2);
-                        mesh_verts.push(v3);
+                        mesh_verts.push(vertices[i1]);
+                        mesh_verts.push(vertices[i2]);
+                        mesh_verts.push(vertices[i3]);
+
+                        mesh_colors.push(Self::get_cell_color(types[i1]));
+                        mesh_colors.push(Self::get_cell_color(types[i2]));
+                        mesh_colors.push(Self::get_cell_color(types[i3]));
 
                         idx += 3;
                     }
@@ -325,6 +456,7 @@ impl Chunk {
                 RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
             )
             .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, mesh_verts)
+            .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, mesh_colors)
             .with_computed_flat_normals()
             .with_inserted_indices(Indices::U32(mesh_indices)),
         );

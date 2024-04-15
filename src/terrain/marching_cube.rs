@@ -1,20 +1,37 @@
 use std::f32::EPSILON;
 
+use super::chunk::{Cell, CellType};
 use bevy::math::Vec3;
 
-pub fn mc_interpolate_vertex(iso_level: f32, p1: Vec3, p2: Vec3, val1: f32, val2: f32) -> Vec3 {
-    if f32::abs(iso_level - val1) < EPSILON {
-        return p1;
+pub fn mc_interpolate_vertex(
+    iso_level: f32,
+    p1: Vec3,
+    p2: Vec3,
+    c1: Cell,
+    c2: Cell,
+) -> (Vec3, CellType) {
+    if f32::abs(iso_level - c1.value) < EPSILON {
+        return (p1, c1.cell_type);
     }
-    if f32::abs(iso_level - val2) < EPSILON {
-        return p2;
+    if f32::abs(iso_level - c2.value) < EPSILON {
+        return (p2, c2.cell_type);
     }
-    if f32::abs(val1 - val2) < EPSILON {
-        return p1;
+    if f32::abs(c1.value - c2.value) < EPSILON {
+        return (p1, c1.cell_type);
     }
 
-    let mu = (iso_level - val1) / (val2 - val1);
-    return p1 + (p2 - p1) * mu;
+    let mu = (iso_level - c1.value) / (c2.value - c1.value);
+    let p3 = p1 + (p2 - p1) * mu;
+    let mut ct = CellType::Stone;
+
+    // Find which point is inside the surface for cell type.
+    if c1.value < iso_level && c2.value > iso_level {
+        ct = c1.cell_type;
+    } else if c2.value < iso_level && c1.value > iso_level {
+        ct = c2.cell_type;
+    }
+
+    return (p3, ct);
 }
 
 // Marching cubes lookup tables from https://paulbourke.net/geometry/polygonise/

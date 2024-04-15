@@ -38,7 +38,7 @@ fn main() {
         .insert_resource(ClearColor(Color::BLACK))
         .insert_resource(AmbientLight {
             color: Color::WHITE,
-            brightness: 50.0, // wtf is the camera exposure
+            brightness: 10.0,
         })
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {

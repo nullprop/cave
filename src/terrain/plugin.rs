@@ -19,7 +19,9 @@ pub struct TerrainPlugin {
 #[derive(Resource)]
 pub struct TerrainSettings {
     fbm: Fbm<Perlin>,
-    cell_noise_scale: f64,
+    fbm_scale: f64,
+    type_noise: Perlin,
+    type_noise_scale: f64,
 }
 
 #[derive(Debug)]
@@ -33,6 +35,7 @@ pub struct TerrainCellEvent {
     pub dir: Vec3,
     pub value: f32,
     pub shape: TerrainEditShape,
+    pub cell_type: Option<CellType>,
 }
 
 #[derive(Component)]
@@ -44,7 +47,9 @@ impl TerrainPlugin {
             .spawn((
                 Chunk::new(
                     &settings.fbm,
-                    settings.cell_noise_scale,
+                    settings.fbm_scale,
+                    settings.type_noise,
+                    settings.type_noise_scale,
                     pos.x,
                     pos.y,
                     pos.z,
@@ -61,7 +66,7 @@ impl TerrainPlugin {
     fn spawn_around_player(
         mut commands: Commands,
         mut q_chunk: Query<&mut Chunk>,
-        // FIXME: should not require player plugin,
+        // FIXME: should not require player plugin?,
         // add some internal position indicator...
         q_player: Query<&Transform, With<Player>>,
         settings: Res<TerrainSettings>,
@@ -212,9 +217,8 @@ impl TerrainPlugin {
                         .spawn(PbrBundle {
                             mesh: mesh_handle,
                             material: materials.add(StandardMaterial {
-                                base_color: Color::GRAY,
                                 metallic: 0.0,
-                                perceptual_roughness: 0.6,
+                                perceptual_roughness: 0.8,
                                 ..default()
                             }),
                             ..default()
@@ -235,7 +239,9 @@ impl Plugin for TerrainPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(TerrainSettings {
             fbm: Fbm::<Perlin>::new(self.seed),
-            cell_noise_scale: 0.02,
+            fbm_scale: 0.02,
+            type_noise: Perlin::new(self.seed),
+            type_noise_scale: 0.05,
         })
         .add_event::<TerrainCellEvent>()
         .add_systems(Update, Self::spawn_around_player)

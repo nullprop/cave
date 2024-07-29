@@ -327,7 +327,7 @@ impl PlayerPlugin {
                         origin: player_transform.translation + Vec3::Y * player.camera_height,
                         dir: cam_fwd,
                         value: 1.0,
-                        shape: TerrainEditShape::Sphere(0.5),
+                        shape: TerrainEditShape::Sphere(1.5),
                         cell_type: None,
                     });
                 }
@@ -336,7 +336,7 @@ impl PlayerPlugin {
                         origin: player_transform.translation + Vec3::Y * player.camera_height,
                         dir: cam_fwd,
                         value: 0.0,
-                        shape: TerrainEditShape::Sphere(0.5),
+                        shape: TerrainEditShape::Sphere(1.5),
                         cell_type: Some(CellType::Stone),
                     });
                 }
